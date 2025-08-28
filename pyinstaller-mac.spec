@@ -3,7 +3,6 @@
 block_cipher = None
 
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
-from PyInstaller.utils.hooks.qt import add_qt6_dependencies
 from pathlib import Path
 
 vendor_dir = Path('rtmp_client/vendor')
@@ -30,9 +29,6 @@ a = Analysis(
     excludes=[],
     noarchive=False,
 )
-
-# Ensure Qt6 dependencies (frameworks and plugins) are included
-add_qt6_dependencies(a)
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
