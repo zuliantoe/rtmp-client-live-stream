@@ -27,34 +27,38 @@ def ensure_exec(path: Path) -> None:
         pass
 
 
+def safe_copy(src: Path, dst: Path) -> None:
+    if dst.exists() or dst.is_symlink():
+        try:
+            dst.unlink()
+        except Exception:
+            pass
+    shutil.copy2(src, dst)
+
+
 def copy_windows_bundle(src_bin: Path, dst_dir: Path) -> None:
     dst_dir.mkdir(parents=True, exist_ok=True)
-    # Copy exes
     for exe in ("ffmpeg.exe", "ffprobe.exe"):
         src = src_bin / exe
         if src.exists():
-            shutil.copy2(src, dst_dir / exe)
+            safe_copy(src, dst_dir / exe)
             ensure_exec(dst_dir / exe)
-    # Copy DLLs in same bin dir
     for dll in src_bin.glob("*.dll"):
-        shutil.copy2(dll, dst_dir / dll.name)
+        safe_copy(dll, dst_dir / dll.name)
 
 
 def copy_unix_ffmpeg(src_ffmpeg: Path, dst_dir: Path) -> None:
     dst_dir.mkdir(parents=True, exist_ok=True)
     target = dst_dir / "ffmpeg"
-    shutil.copy2(src_ffmpeg, target)
+    safe_copy(src_ffmpeg, target)
     ensure_exec(target)
 
 
 def detect_windows_bin_from_ffmpeg(ffmpeg_path: Path) -> Path:
-    # If ffmpeg.exe given, bin dir is its parent
     if ffmpeg_path.name.lower() == "ffmpeg.exe":
         return ffmpeg_path.parent
-    # If pointed to a bin directory
     if ffmpeg_path.is_dir():
         return ffmpeg_path
-    # Otherwise use parent
     return ffmpeg_path.parent
 
 

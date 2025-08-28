@@ -17,7 +17,7 @@ qt_plugin_datas += collect_data_files('PySide6', includes=['Qt/plugins/imageform
 qt_plugin_datas += collect_data_files('PySide6', includes=['Qt/plugins/mediaservice/*'])
 
 a = Analysis(
-    ['-m', 'rtmp_client'],
+    ['rtmp_client/__main__.py'],
     pathex=[],
     binaries=[],
     datas=extra_datas + qt_plugin_datas,
