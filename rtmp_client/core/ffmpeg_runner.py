@@ -8,6 +8,8 @@ from typing import Optional, List
 
 from PySide6.QtCore import QObject, Signal
 
+from .ffmpeg_resolver import find_ffmpeg
+
 
 class FFMpegRunner(QObject):
     on_log = Signal(str)
@@ -18,7 +20,7 @@ class FFMpegRunner(QObject):
 
     def __init__(self, ffmpeg_path: Optional[str] = None) -> None:
         super().__init__()
-        self._ffmpeg_path = ffmpeg_path or shutil.which("ffmpeg")
+        self._ffmpeg_path = ffmpeg_path or find_ffmpeg() or shutil.which("ffmpeg")
         self._process: Optional[subprocess.Popen] = None
         self._stdout_thread: Optional[threading.Thread] = None
         self._stderr_thread: Optional[threading.Thread] = None

@@ -3,12 +3,18 @@
 block_cipher = None
 
 from PyInstaller.utils.hooks import collect_submodules
+from pathlib import Path
+
+vendor_dir = Path('rtmp_client/vendor')
+extra_datas = []
+if vendor_dir.exists():
+    extra_datas.append((str(vendor_dir), 'rtmp_client/vendor'))
 
 a = Analysis(
     ['-m', 'rtmp_client'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=extra_datas,
     hiddenimports=collect_submodules('PySide6'),
     hookspath=[],
     hooksconfig={},
