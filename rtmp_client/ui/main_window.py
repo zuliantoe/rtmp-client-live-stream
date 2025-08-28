@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Optional
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Qt, Slot, QUrl
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QWidget,
@@ -22,7 +23,10 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QCheckBox,
     QGroupBox,
+    QAbstractItemView,
 )
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimediaWidgets import QVideoWidget
 
 from rtmp_client.core.ffmpeg_runner import FFMpegRunner
 from rtmp_client.core.validators import is_valid_rtmp_url, is_file_readable
@@ -47,7 +51,7 @@ class MainWindow(QMainWindow):
 
         # Playlist widgets
         self.playlist = QListWidget(self)
-        self.playlist.setSelectionMode(self.playlist.ExtendedSelection)
+        self.playlist.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.add_videos_button = QPushButton("Add Video(s)", self)
         self.add_videos_button.clicked.connect(self.on_add_videos)
         self.remove_selected_button = QPushButton("Remove Selected", self)
@@ -70,12 +74,27 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self.on_stop_clicked)
         self.stop_button.setEnabled(False)
 
+        # Status and connection quality
         self.status_label = QLabel("Idle", self)
         self.status_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.conn_label = QLabel("", self)
+        self.conn_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
+        # Log output
         self.log_output = QPlainTextEdit(self)
         self.log_output.setReadOnly(True)
         self.log_output.setLineWrapMode(QPlainTextEdit.NoWrap)
+
+        # Preview setup (QtMultimedia)
+        self.preview_group = QGroupBox("Preview", self)
+        preview_layout = QVBoxLayout(self.preview_group)
+        self.video_widget = QVideoWidget(self.preview_group)
+        preview_layout.addWidget(self.video_widget)
+        self.media_player = QMediaPlayer(self.preview_group)
+        self.audio_output = QAudioOutput(self.preview_group)
+        self.audio_output.setVolume(0.0)
+        self.media_player.setAudioOutput(self.audio_output)
+        self.media_player.setVideoOutput(self.video_widget)
 
         # Layouts
         form = QFormLayout()
@@ -104,8 +123,10 @@ class MainWindow(QMainWindow):
         root_layout = QVBoxLayout(central)
         root_layout.addLayout(form)
         root_layout.addWidget(playlist_group)
+        root_layout.addWidget(self.preview_group)
         root_layout.addLayout(buttons_row)
         root_layout.addWidget(self.status_label)
+        root_layout.addWidget(self.conn_label)
         root_layout.addWidget(self.log_output, 1)
 
         # Wire runner signals
@@ -208,6 +229,7 @@ class MainWindow(QMainWindow):
     def on_stop_clicked(self) -> None:
         self.append_log("[app] Stopping FFmpeg...\n")
         self._runner.stop_stream()
+        self.media_player.stop()
 
     @Slot()
     def on_started(self) -> None:
@@ -217,17 +239,23 @@ class MainWindow(QMainWindow):
     def on_file_started(self, file_path: str) -> None:
         base = os.path.basename(file_path)
         self.status_label.setText(f"Streaming: {base}")
+        # Start preview of the local file, muted
+        self.media_player.setSource(QUrl.fromLocalFile(file_path))
+        self.media_player.play()
 
     @Slot(int)
     def on_stopped(self, exit_code: int) -> None:
         self.append_log(f"[app] FFmpeg exited with code {exit_code}\n")
         self.status_label.setText("Idle")
+        self.conn_label.setText("")
+        self.media_player.stop()
         self.set_running_ui(False)
 
     @Slot(str)
     def on_error(self, message: str) -> None:
         self.append_log(f"[error] {message}\n")
         QMessageBox.critical(self, "Error", message)
+        self.media_player.stop()
         self.set_running_ui(False)
 
     @Slot(str)
@@ -235,6 +263,7 @@ class MainWindow(QMainWindow):
         self.log_output.moveCursor(QTextCursor.End)
         self.log_output.insertPlainText(text)
         self.log_output.moveCursor(QTextCursor.End)
+        self._maybe_update_metrics(text)
 
     def set_running_ui(self, running: bool) -> None:
         # Disable inputs during running
@@ -249,3 +278,29 @@ class MainWindow(QMainWindow):
         self.move_up_button.setEnabled(not running)
         self.move_down_button.setEnabled(not running)
         self.loop_checkbox.setEnabled(not running)
+
+    # Parse FFmpeg progress line for fps/bitrate/speed
+    def _maybe_update_metrics(self, line: str) -> None:
+        if "frame=" not in line or "bitrate=" not in line:
+            return
+        # Example: frame=  110 fps= 25 q=28.0 size=    1024kB time=00:00:04.40 bitrate= 1902.2kbits/s speed=1.01x
+        fps_match = re.search(r"fps=\s*([\d.]+)", line)
+        br_match = re.search(r"bitrate=\s*([\d.]+)\s*([kM])?bits/s", line)
+        sp_match = re.search(r"speed=\s*([\d.]+x)", line)
+        if not (fps_match or br_match or sp_match):
+            return
+        parts = []
+        if fps_match:
+            parts.append(f"FPS: {fps_match.group(1)}")
+        if br_match:
+            val = float(br_match.group(1))
+            unit = br_match.group(2) or ""
+            if unit == "M":
+                kbps = int(val * 1000)
+            else:
+                kbps = int(val)
+            parts.append(f"Bitrate: {kbps} kbps")
+        if sp_match:
+            parts.append(f"Speed: {sp_match.group(1)}")
+        if parts:
+            self.conn_label.setText(" | ".join(parts))
