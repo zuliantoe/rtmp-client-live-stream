@@ -3,4 +3,5 @@ __all__ = [
     "validators",
     "settings",
     "ffmpeg_resolver",
+    "ffprobe_resolver",
 ]

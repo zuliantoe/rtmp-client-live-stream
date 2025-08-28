@@ -30,16 +30,24 @@ Aplikasi akan mencoba memakai FFmpeg dari folder vendor yang dibundel. Jika tida
 Struktur vendor:
 ```
 rtmp_client/vendor/
-  darwin/ffmpeg     # macOS
-  windows/ffmpeg.exe# Windows
-  linux/ffmpeg      # Linux
+  darwin/ffmpeg
+  windows/ffmpeg.exe + ffprobe.exe + *.dll
+  linux/ffmpeg
 ```
 
-Cara menyalin FFmpeg ke vendor (ambil dari sistem yang terinstall):
+- Windows disarankan menyalin seluruh isi folder `bin` dari distribusi FFmpeg (EXE + DLL) ke `rtmp_client/vendor/windows/` agar tidak ada dependency yang hilang.
+- macOS/Linux cukup `ffmpeg` executable.
+
+Salin otomatis dari PATH:
 ```
 python scripts/copy_ffmpeg_to_vendor.py
 ```
-Lalu build menggunakan spec yang sudah memasukkan folder vendor.
+Atau berikan sumber secara eksplisit (contoh Windows, arahkan ke ffmpeg.exe atau folder bin):
+```
+python scripts/copy_ffmpeg_to_vendor.py "C:\\ffmpeg\\bin"
+```
+
+Build dengan PyInstaller akan menyertakan folder vendor jika ada.
 
 ## Struktur Project
 ```
