@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List, Optional
+import os
+import platform
+
+
+APP_NAME = "RTMP Client"
+ORG_NAME = "RTMP Client"
+
+
+def default_config_dir() -> Path:
+    home = Path.home()
+    system = platform.system().lower()
+    if system == "windows":
+        base = Path(os.getenv("APPDATA", home / "AppData" / "Roaming"))
+        return base / ORG_NAME / APP_NAME
+    if system == "darwin":
+        return home / "Library" / "Application Support" / APP_NAME
+    return home / ".config" / APP_NAME
+
+
+@dataclass
+class AppSettings:
+    ffmpeg_path: Optional[str] = None
+
+    # Next steps placeholders
+    loop_video: bool = False  # -stream_loop -1
+    playlist: List[str] = field(default_factory=list)
+
+    video_bitrate_kbps: int = 2500
+    audio_bitrate_kbps: int = 128
+    audio_sample_rate: int = 44100
+    target_width: Optional[int] = None
+    target_height: Optional[int] = None
+    target_fps: Optional[int] = None
+
+    profiles_file: Path = field(default_factory=lambda: default_config_dir() / "profiles.json")
+
+
+def ensure_config_dir() -> Path:
+    cfg = default_config_dir()
+    cfg.mkdir(parents=True, exist_ok=True)
+    return cfg
