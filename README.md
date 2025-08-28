@@ -14,6 +14,14 @@ ffmpeg -re -i <video_file> -c:v libx264 -preset veryfast -b:v 2500k \
        -c:a aac -ar 44100 -b:a 128k -f flv <rtmp_url>
 ```
 
+## Fitur Playlist & Loop (baru)
+- Add Video(s): pilih beberapa file sekaligus (multi-select)
+- Tampilkan playlist di GUI dan atur urutan (Move Up/Down, Remove Selected)
+- Loop Playlist: bila aktif, setelah file terakhir selesai akan kembali ke file pertama
+- Status menampilkan file yang sedang di-stream: "Streaming: <current file>"
+
+Catatan: setiap file dijalankan real-time (`-re`). Bila Loop aktif, runner akan mengulang playlist secara otomatis.
+
 ## Struktur Project
 ```
 rtmp-client-live-stream/
@@ -76,15 +84,10 @@ Contoh sederhana:
 pyinstaller -n rtmp-client -w -m rtmp_client
 ```
 
-## Catatan FFmpeg
-- Pastikan kualitas upload internet memadai untuk bitrate video 2500 kbps dan audio 128 kbps.
-- Untuk YouTube Live, gunakan RTMP URL + stream key dari YouTube Studio.
-
-## Next Steps (sudah disiapkan strukturnya)
-- Opsi loop video (`-stream_loop -1`)
-- Playlist (beberapa file jalan bergantian)
-- Preview video kecil di GUI
-- Setting bitrate, resolusi, FPS dari GUI
-- Save/load profile RTMP URL
+## Next Steps (sudah disiapkan stubs)
+- Random shuffle playlist
+- Simpan & load playlist (.json)
+- Progress bar durasi video
+- Preview kecil (QtMultimedia/ffplay)
 
 Kontribusi dipersilakan. PR/issue sangat membantu. 

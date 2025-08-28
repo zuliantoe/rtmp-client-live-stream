@@ -18,6 +18,10 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QSizePolicy,
+    QListWidget,
+    QListWidgetItem,
+    QCheckBox,
+    QGroupBox,
 )
 
 from rtmp_client.core.ffmpeg_runner import FFMpegRunner
@@ -33,7 +37,7 @@ class MainWindow(QMainWindow):
         central = QWidget(self)
         self.setCentralWidget(central)
 
-        # Widgets
+        # Single-file widgets (kept for convenience)
         self.video_path_edit = QLineEdit(self)
         self.video_path_edit.setPlaceholderText("Pilih file video (MP4/MKV/MOV)")
         self.video_path_edit.setClearButtonEnabled(True)
@@ -41,13 +45,27 @@ class MainWindow(QMainWindow):
         self.browse_button = QPushButton("Browse", self)
         self.browse_button.clicked.connect(self.on_browse_clicked)
 
+        # Playlist widgets
+        self.playlist = QListWidget(self)
+        self.playlist.setSelectionMode(self.playlist.ExtendedSelection)
+        self.add_videos_button = QPushButton("Add Video(s)", self)
+        self.add_videos_button.clicked.connect(self.on_add_videos)
+        self.remove_selected_button = QPushButton("Remove Selected", self)
+        self.remove_selected_button.clicked.connect(self.on_remove_selected)
+        self.move_up_button = QPushButton("Move Up", self)
+        self.move_up_button.clicked.connect(self.on_move_up)
+        self.move_down_button = QPushButton("Move Down", self)
+        self.move_down_button.clicked.connect(self.on_move_down)
+        self.loop_checkbox = QCheckBox("Loop Playlist", self)
+
+        # RTMP URL
         self.rtmp_url_edit = QLineEdit(self)
         self.rtmp_url_edit.setPlaceholderText("rtmp://... atau rtmps://...")
         self.rtmp_url_edit.setClearButtonEnabled(True)
 
+        # Controls
         self.start_button = QPushButton("Start Streaming", self)
         self.start_button.clicked.connect(self.on_start_clicked)
-
         self.stop_button = QPushButton("Stop Streaming", self)
         self.stop_button.clicked.connect(self.on_stop_clicked)
         self.stop_button.setEnabled(False)
@@ -67,12 +85,25 @@ class MainWindow(QMainWindow):
         form.addRow("Video File:", file_row)
         form.addRow("RTMP URL:", self.rtmp_url_edit)
 
+        playlist_group = QGroupBox("Playlist", self)
+        playlist_layout = QVBoxLayout(playlist_group)
+        playlist_layout.addWidget(self.playlist, 1)
+        playlist_buttons_row = QHBoxLayout()
+        playlist_buttons_row.addWidget(self.add_videos_button)
+        playlist_buttons_row.addWidget(self.remove_selected_button)
+        playlist_buttons_row.addStretch(1)
+        playlist_buttons_row.addWidget(self.move_up_button)
+        playlist_buttons_row.addWidget(self.move_down_button)
+        playlist_layout.addLayout(playlist_buttons_row)
+        playlist_layout.addWidget(self.loop_checkbox)
+
         buttons_row = QHBoxLayout()
         buttons_row.addWidget(self.start_button)
         buttons_row.addWidget(self.stop_button)
 
         root_layout = QVBoxLayout(central)
         root_layout.addLayout(form)
+        root_layout.addWidget(playlist_group)
         root_layout.addLayout(buttons_row)
         root_layout.addWidget(self.status_label)
         root_layout.addWidget(self.log_output, 1)
@@ -82,6 +113,7 @@ class MainWindow(QMainWindow):
         self._runner.on_started.connect(self.on_started)
         self._runner.on_stopped.connect(self.on_stopped)
         self._runner.on_error.connect(self.on_error)
+        self._runner.on_file_started.connect(self.on_file_started)
 
     # Slots
     @Slot()
@@ -97,10 +129,70 @@ class MainWindow(QMainWindow):
             self.video_path_edit.setText(file_path)
 
     @Slot()
-    def on_start_clicked(self) -> None:
-        video_path = self.video_path_edit.text().strip()
-        rtmp_url = self.rtmp_url_edit.text().strip()
+    def on_add_videos(self) -> None:
+        start_dir = os.path.expanduser("~")
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Pilih Video (bisa multiple)",
+            start_dir,
+            "Video Files (*.mp4 *.mkv *.mov);;All Files (*)",
+        )
+        for f in files:
+            if f and os.path.isfile(f):
+                self.playlist.addItem(f)
 
+    @Slot()
+    def on_remove_selected(self) -> None:
+        for item in self.playlist.selectedItems():
+            row = self.playlist.row(item)
+            self.playlist.takeItem(row)
+
+    @Slot()
+    def on_move_up(self) -> None:
+        rows = sorted([self.playlist.row(i) for i in self.playlist.selectedItems()])
+        if not rows:
+            return
+        for row in rows:
+            if row == 0:
+                continue
+            item = self.playlist.takeItem(row)
+            self.playlist.insertItem(row - 1, item)
+            item.setSelected(True)
+
+    @Slot()
+    def on_move_down(self) -> None:
+        rows = sorted([self.playlist.row(i) for i in self.playlist.selectedItems()], reverse=True)
+        if not rows:
+            return
+        for row in rows:
+            if row >= self.playlist.count() - 1:
+                continue
+            item = self.playlist.takeItem(row)
+            self.playlist.insertItem(row + 1, item)
+            item.setSelected(True)
+
+    @Slot()
+    def on_start_clicked(self) -> None:
+        # Prefer playlist if available
+        files = [self.playlist.item(i).text() for i in range(self.playlist.count())]
+        rtmp_url = self.rtmp_url_edit.text().strip()
+        loop = self.loop_checkbox.isChecked()
+
+        if files:
+            # Validate at least the first file exists
+            if not any(os.path.isfile(p) for p in files):
+                QMessageBox.warning(self, "Validasi Gagal", "Playlist kosong atau file tidak valid.")
+                return
+            if not is_valid_rtmp_url(rtmp_url):
+                QMessageBox.warning(self, "Validasi Gagal", "RTMP URL harus diawali rtmp:// atau rtmps://")
+                return
+            self.set_running_ui(True)
+            self.append_log("[app] Starting FFmpeg (playlist)...\n")
+            self._runner.start_playlist(video_files=files, rtmp_url=rtmp_url, loop=loop)
+            return
+
+        # Fallback single file
+        video_path = self.video_path_edit.text().strip()
         if not is_file_readable(video_path):
             QMessageBox.warning(self, "Validasi Gagal", "File video tidak valid / tidak bisa dibaca.")
             return
@@ -121,6 +213,11 @@ class MainWindow(QMainWindow):
     def on_started(self) -> None:
         self.status_label.setText("Streaming berjalan...")
 
+    @Slot(str)
+    def on_file_started(self, file_path: str) -> None:
+        base = os.path.basename(file_path)
+        self.status_label.setText(f"Streaming: {base}")
+
     @Slot(int)
     def on_stopped(self, exit_code: int) -> None:
         self.append_log(f"[app] FFmpeg exited with code {exit_code}\n")
@@ -140,8 +237,15 @@ class MainWindow(QMainWindow):
         self.log_output.moveCursor(QTextCursor.End)
 
     def set_running_ui(self, running: bool) -> None:
+        # Disable inputs during running
         self.start_button.setEnabled(not running)
         self.stop_button.setEnabled(running)
         self.video_path_edit.setEnabled(not running)
         self.browse_button.setEnabled(not running)
         self.rtmp_url_edit.setEnabled(not running)
+        self.playlist.setEnabled(not running)
+        self.add_videos_button.setEnabled(not running)
+        self.remove_selected_button.setEnabled(not running)
+        self.move_up_button.setEnabled(not running)
+        self.move_down_button.setEnabled(not running)
+        self.loop_checkbox.setEnabled(not running)
