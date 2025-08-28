@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QGroupBox,
     QAbstractItemView,
+    QSplitter,
 )
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -120,14 +121,32 @@ class MainWindow(QMainWindow):
         buttons_row.addWidget(self.start_button)
         buttons_row.addWidget(self.stop_button)
 
+        # Left side (inputs + playlist)
+        left_widget = QWidget(self)
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.addLayout(form)
+        left_layout.addWidget(playlist_group, 1)
+
+        # Right side (preview + status + controls + logs)
+        right_widget = QWidget(self)
+        right_layout = QVBoxLayout(right_widget)
+        self.preview_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.video_widget.setMinimumHeight(240)
+        right_layout.addWidget(self.preview_group, 3)
+        right_layout.addWidget(self.status_label)
+        right_layout.addWidget(self.conn_label)
+        right_layout.addLayout(buttons_row)
+        right_layout.addWidget(self.log_output, 2)
+
+        splitter = QSplitter(Qt.Horizontal, self)
+        splitter.addWidget(left_widget)
+        splitter.addWidget(right_widget)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+
         root_layout = QVBoxLayout(central)
-        root_layout.addLayout(form)
-        root_layout.addWidget(playlist_group)
-        root_layout.addWidget(self.preview_group)
-        root_layout.addLayout(buttons_row)
-        root_layout.addWidget(self.status_label)
-        root_layout.addWidget(self.conn_label)
-        root_layout.addWidget(self.log_output, 1)
+        root_layout.addWidget(splitter, 1)
 
         # Wire runner signals
         self._runner.on_log.connect(self.append_log)
