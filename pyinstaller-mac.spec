@@ -2,7 +2,8 @@
 
 block_cipher = None
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks.qt import add_qt6_dependencies
 from pathlib import Path
 
 vendor_dir = Path('rtmp_client/vendor')
@@ -10,11 +11,18 @@ extra_datas = []
 if vendor_dir.exists():
     extra_datas.append((str(vendor_dir), 'rtmp_client/vendor'))
 
+# Collect essential Qt plugins for PySide6 (platforms, imageformats, mediaservice)
+qt_plugin_datas = []
+qt_plugin_datas += collect_data_files('PySide6', includes=['Qt/plugins/platforms/*'])
+qt_plugin_datas += collect_data_files('PySide6', includes=['Qt/plugins/imageformats/*'])
+qt_plugin_datas += collect_data_files('PySide6', includes=['Qt/plugins/mediaservice/*'])
+
+
 a = Analysis(
     ['-m', 'rtmp_client'],
     pathex=[],
     binaries=[],
-    datas=extra_datas,
+    datas=extra_datas + qt_plugin_datas,
     hiddenimports=collect_submodules('PySide6'),
     hookspath=[],
     hooksconfig={},
@@ -22,6 +30,10 @@ a = Analysis(
     excludes=[],
     noarchive=False,
 )
+
+# Ensure Qt6 dependencies (frameworks and plugins) are included
+add_qt6_dependencies(a)
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,

@@ -124,3 +124,8 @@ pyinstaller -n rtmp-client -w -m rtmp_client --add-data "rtmp_client/vendor:rtmp
 - Preview kecil (QtMultimedia/ffplay) – sudah ada preview basic
 
 Kontribusi dipersilakan. PR/issue sangat membantu. 
+
+## Troubleshooting Build (macOS)
+- Missing Qt plugins (platforms/imageformats/mediaservice): spec sudah mengumpulkan plugin Qt6, pastikan `PySide6` terinstall lengkap. Jika masih error `Could not load the Qt platform plugin`, coba hapus `build/` dan `dist/` lalu rebuild.
+- FFmpeg dylib not loaded: disarankan gunakan ffmpeg statis atau salin binary hasil `brew` via script. Jika masih ada error `Library not loaded`, pastikan path dylib tidak hardcoded dan gunakan vendor binary yang disalin.
+- Notarization/Gatekeeper: untuk distribusi, perlu signing+notarization. Di dev, Anda bisa bypass dengan `System Settings > Privacy & Security`. 
